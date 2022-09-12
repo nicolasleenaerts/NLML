@@ -121,7 +121,6 @@ elastic_net_wrapper <- function(data, outcome=NULL, predictors_con=NULL,predicto
     # correcting dummy coded variables
     # identify binary data
     binary_predictors = colnames(x_train_entry)[which(apply(x_train_entry,2,function(x) { all(x %in% 0:1) })==T)]
-    binary_predictors = subset(binary_predictors,binary_predictors%!in%colnames(x_train_entry)[grepl('numeric',sapply(x_train_entry,class))])
     x_train_entry[,c(binary_predictors)]<- x_train_entry[,c(binary_predictors)]-1
     x_test_entry[,c(binary_predictors)]<- x_test_entry[,c(binary_predictors)]-1
     
