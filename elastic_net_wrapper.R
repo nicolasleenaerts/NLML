@@ -7,6 +7,7 @@ elastic_net_wrapper <- function(data, outcome=NULL, predictors_con=NULL,predicto
   require(pROC)
   require(caret)
   require(splitTools)
+  `%!in%` = Negate(`%in%`)
   
   # combine predictors
   predictors = c(predictors_con,predictors_cat)
