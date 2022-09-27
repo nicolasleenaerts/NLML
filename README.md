@@ -18,17 +18,14 @@ Elastic net regularized regression can be a powerful machine learning technique 
 
 The wrappers give you the possibility to perform a train test split. The default setting of the wrappers is to use 80% of the data as training data and to use 20% as testing data. However, you can change this by entering the percentage of training data you want with the 'split' argument. For example, if you want to use 50% of the data as training data, then you enter split=50.
 
-`elastic_net_wrapper(data=my_data,outcome='binge_eating',predictors_con=c(predictor_variables_con,"linear","quad","cub","cosT","sinT","cos2T","sin2T"),
-predictors_cat=c(predictor_variables_cat,"thur","fri","sat","ping1","ping2","ping3","ping4","ping5","ping6","ping7","ping8"),split =50)`
+`elastic_net_wrapper(data=my_data,outcome='binge_eating',predictors_con=predictor_variables_con,predictors_cat=predictor_variables_cat,split =50)`
 
 The wrappers also give you the possibility to perform a k-fold cross validation. If you wan to do so, you have to specify the number of folds you want with the 'outer_cv' argument. For example, if you want to perform a 5-fold cross-validation, then you enter outer_cv=5.
 
-`elastic_net_wrapper(data=my_data,outcome='binge_eating',predictors_con=c(predictor_variables_con,"linear","quad","cub","cosT","sinT","cos2T","sin2T"),
-predictors_cat=c(predictor_variables_cat,"thur","fri","sat","ping1","ping2","ping3","ping4","ping5","ping6","ping7","ping8"),outer_cv=5)`
+`elastic_net_wrapper(data=my_data,outcome='binge_eating',predictors_con=predictor_variables_con,predictors_cat=predictor_variables_cat,outer_cv=5)`
 
 * Stratification
 
 By default, the train test split or k-fold cross-validation is stratified. This means that the distribution of the outcome is the same across splits or folds. If you don't want the split or cross-validation to be stratified, then you enter stratified=F.
 
-`elastic_net_wrapper(data=my_data,outcome='binge_eating',predictors_con=c(predictor_variables_con,"linear","quad","cub","cosT","sinT","cos2T","sin2T"),
-predictors_cat=c(predictor_variables_cat,"thur","fri","sat","ping1","ping2","ping3","ping4","ping5","ping6","ping7","ping8"),stratified=F)`
+`elastic_net_wrapper(data=my_data,outcome='binge_eating',predictors_con=predictor_variables_con,predictors_cat=predictor_variables_cat,stratified=F)`
