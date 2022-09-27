@@ -18,6 +18,10 @@ Elastic net regularized regression can be a powerful machine learning technique 
 
 The wrappers give you the possibility to perform a train test split. The default setting of the wrappers is to use 80% of the data as training data and to use 20% as testing data. However, you can change this by entering the percentage of training data you want with the 'split' argument. For example, if you want to use 50% of the data as training data, then you enter split=50.
 
+`for (by_index in 1:length(unique(unlist(data[by])))){
+    by_entry = unique(unlist(data[by]))[by_index]
+    data_by = subset(data,unlist(data[by])==by_entry)`
+
 The wrappers also give you the possibility to perform a k-fold cross validation. If you wan to do so, you have to specify the number of folds you want with the 'outer_cv' argument. For example, if you want to perform a 5-fold cross-validation, then you enter outer_cv=5.
 
 * Stratification
