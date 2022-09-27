@@ -103,7 +103,7 @@ elastic_net_wrapper <- function(data, outcome=NULL, predictors_con=NULL,predicto
     if (is.null(stop_train)==F){
       if (sum(as.numeric(as.character(unlist(y_train_entry))))<stop_train){next}
     }
-      
+    
     #scaling numeric data
     if (scaling==T){
       for(variable in predictors_con){
@@ -121,6 +121,7 @@ elastic_net_wrapper <- function(data, outcome=NULL, predictors_con=NULL,predicto
     # correcting dummy coded variables
     # identify binary data
     binary_predictors = colnames(x_train_entry)[which(apply(x_train_entry,2,function(x) { all(x %in% 0:1) })==T)]
+    binary_predictors = subset(binary_predictors,binary_predictors%!in%colnames(x_train_entry)[grepl('numeric',sapply(x_train_entry,class))])
     x_train_entry[,c(binary_predictors)]<- x_train_entry[,c(binary_predictors)]-1
     x_test_entry[,c(binary_predictors)]<- x_test_entry[,c(binary_predictors)]-1
     
@@ -195,11 +196,11 @@ elastic_net_wrapper <- function(data, outcome=NULL, predictors_con=NULL,predicto
     
     # AUC, sensitivity, specificity
     predictions = predict(elastic_model, newx=x_test_entry,type = "response")
-    model_roc =  roc(unlist(y_test_entry),as.numeric(predictions),direction="<",quiet=T)
+    model_roc =  roc(unlist(y_test_entry),as.numeric(predictions),direction="<",quiet=T, levels=c('0','1'))
     model_coords = coords(model_roc,"best", ret=c("threshold", "specificity", "sensitivity"), transpose=FALSE)
     model_auc = auc(model_roc)
-    ifelse( nrow(model_coords[2])>1,model_spec <- NA, model_spec <- model_coords[2])
-    ifelse( nrow(model_coords[2])>1,model_sens <- NA, model_sens <- model_coords[3])
+    model_spec <- model_coords[2]
+    model_sens <- model_coords[3]
     
     # accuracy, PPV, NPV
     predictions_bin = ifelse(predictions>model_coords$threshold,1,0)
@@ -235,6 +236,7 @@ elastic_net_wrapper <- function(data, outcome=NULL, predictors_con=NULL,predicto
   
   # close progress bar
   close(pb)
+  
   # remove stored variables
   rm(x_train_entry,envir = .GlobalEnv)
   rm(y_train_entry,envir = .GlobalEnv)
