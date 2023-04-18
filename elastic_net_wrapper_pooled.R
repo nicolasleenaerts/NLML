@@ -1,6 +1,8 @@
-elastic_net_wrapper_pooled <- function(data, outcome=NULL, by=NULL,predictors_con=NULL,predictors_cat=NULL, split=80, outer_cv=NULL, 
-                                       stratified=T,scaling=T,repeated_cv=1,ensr_cv=10,ensr_alphas=seq(0, 1, length = 10),ensr_lambdas=100,seed=404,
-                                       stop_test=NULL,shuffle=T){
+elastic_net_wrapper_pooled <- function(data, outcome=NULL, by=NULL,predictors_con=NULL,predictors_cat=NULL,
+                                                between_predictors_con=NULL,between_predictors_cat=NULL,
+                                                split=80, outer_cv=NULL,stratified=T,scaling=T,repeated_cv=1,ensr_cv=10,
+                                                ensr_alphas=seq(0, 1, length = 10),ensr_lambdas=100,seed=404,
+                                                stop_test=NULL,shuffle=F,family='binary',pred_min=NULL,pred_max=NULL){
   # required packages
   require(ensr)
   require(glmnet)
@@ -10,7 +12,7 @@ elastic_net_wrapper_pooled <- function(data, outcome=NULL, by=NULL,predictors_co
   `%!in%` = Negate(`%in%`)
   
   # combine predictors
-  predictors = c(predictors_con,predictors_cat)
+  predictors = c(predictors_con,predictors_cat,between_predictors_con,between_predictors_cat)
   
   # create list of x and y datasets to be analyzed
   analysis_list = list()
@@ -50,17 +52,29 @@ elastic_net_wrapper_pooled <- function(data, outcome=NULL, by=NULL,predictors_co
     if (is.null(outer_cv)==T){
       # performing stratified split
       if(stratified==T){
-        # get indices
-        set.seed(seed)
-        my_train_ind_no_y =  sample(which(y_by==0), size = split/100*length(which(y_by==0)))
-        set.seed(seed)
-        my_train_ind_y =  sample(which(y_by==1), size = split/100*length(which(y_by==1)))
-        # split data
-        y_train_by = y_by[c(my_train_ind_no_y,my_train_ind_y),]
-        y_test_by =y_by[-c(my_train_ind_no_y,my_train_ind_y),]
-        x_train_by = x_by[c(my_train_ind_no_y,my_train_ind_y),]
-        x_test_by = x_by[-c(my_train_ind_no_y,my_train_ind_y),]
-        #scaling numeric data
+        if (family=='binary'){
+          # get indices
+          set.seed(seed)
+          my_train_ind_no_y =  sample(which(y_by==0), size = split/100*length(which(y_by==0)))
+          set.seed(seed)
+          my_train_ind_y =  sample(which(y_by==1), size = split/100*length(which(y_by==1)))
+          # split data
+          y_train_by = y_by[c(my_train_ind_no_y,my_train_ind_y),]
+          y_test_by =y_by[-c(my_train_ind_no_y,my_train_ind_y),]
+          x_train_by = x_by[c(my_train_ind_no_y,my_train_ind_y),]
+          x_test_by = x_by[-c(my_train_ind_no_y,my_train_ind_y),]
+        }
+        else if (family=='continuous'){
+          # get indices
+          set.seed(seed)
+          my_train_ind =  createDataPartition(as.matrix(y_by), p = split/100, list = T,groups=min(3,nrow(y_by)))
+          # split data
+          y_train_by = y_by[c(unlist(my_train_ind)),]
+          y_test_by =y_by[-c(unlist(my_train_ind)),]
+          x_train_by = x_by[c(unlist(my_train_ind)),]
+          x_test_by = x_by[-c(unlist(my_train_ind)),]
+        }
+        #scaling numeric data on the within level
         if (scaling==T){
           for(variable in predictors_con){
             mean_variable = mean(as.numeric(unlist(x_train_by[,variable])),na.rm=T)
@@ -88,7 +102,7 @@ elastic_net_wrapper_pooled <- function(data, outcome=NULL, by=NULL,predictors_co
         x_train_by = x_by[c(my_train_ind),]
         x_test_by = x_by[-c(my_train_ind),]
         
-        #scaling numeric data
+        #scaling numeric data on the within level
         if (scaling==T){
           for(variable in predictors_con){
             mean_variable = mean(as.numeric(unlist(x_train_by[,variable])),na.rm=T)
@@ -101,7 +115,6 @@ elastic_net_wrapper_pooled <- function(data, outcome=NULL, by=NULL,predictors_co
             x_test_by[,variable] = (as.numeric(unlist(x_test_by[,variable]))-mean_variable)/sd_variable
           }
         }   
-        
         # add to analysis list
         analysis_list[[1]][[1]][(nrow(analysis_list[[1]][[1]])+1):(nrow(analysis_list[[1]][[1]])+length(y_train_by)),1] = y_train_by
         analysis_list[[1]][[2]][(nrow(analysis_list[[1]][[2]])+1):(nrow(analysis_list[[1]][[2]])+nrow(x_train_by)),1:ncol(x_train_by)] = x_train_by
@@ -122,7 +135,7 @@ elastic_net_wrapper_pooled <- function(data, outcome=NULL, by=NULL,predictors_co
           x_train_by <- x_by[c(folds[[nfold]]), ]
           x_test_by <- x_by[-c(folds[[nfold]]), ]
           
-          #scaling numeric data
+          #scaling numeric data on the within level
           if (scaling==T){
             for(variable in predictors_con){
               mean_variable = mean(as.numeric(unlist(x_train_by[,variable])),na.rm=T)
@@ -135,7 +148,6 @@ elastic_net_wrapper_pooled <- function(data, outcome=NULL, by=NULL,predictors_co
               x_test_by[,variable] = (as.numeric(unlist(x_test_by[,variable]))-mean_variable)/sd_variable
             }
           }    
-          
           # add to analysis list
           analysis_list[[nfold]][[1]][(nrow(analysis_list[[nfold]][[1]])+1):(nrow(analysis_list[[nfold]][[1]])+length(y_train_by)),1] = y_train_by
           analysis_list[[nfold]][[2]][(nrow(analysis_list[[nfold]][[2]])+1):(nrow(analysis_list[[nfold]][[2]])+nrow(x_train_by)),1:ncol(x_train_by)] = x_train_by
@@ -152,7 +164,7 @@ elastic_net_wrapper_pooled <- function(data, outcome=NULL, by=NULL,predictors_co
           x_train_by <- x_by[c(folds[[nfold]]), ]
           x_test_by <- x_by[-c(folds[[nfold]]), ]
           
-          #scaling numeric data
+          #scaling numeric data on the within level
           if (scaling==T){
             for(variable in predictors_con){
               mean_variable = mean(as.numeric(unlist(x_train_by[,variable])),na.rm=T)
@@ -165,7 +177,6 @@ elastic_net_wrapper_pooled <- function(data, outcome=NULL, by=NULL,predictors_co
               x_test_by[,variable] = (as.numeric(unlist(x_test_by[,variable]))-mean_variable)/sd_variable
             }
           }      
-          
           # add to analysis list
           analysis_list[[nfold]][[1]][(nrow(analysis_list[[nfold]][[1]])+1):(nrow(analysis_list[[nfold]][[1]])+length(y_train_by)),1] = y_train_by
           analysis_list[[nfold]][[2]][(nrow(analysis_list[[nfold]][[2]])+1):(nrow(analysis_list[[nfold]][[2]])+nrow(x_train_by)),1:ncol(x_train_by)] = x_train_by
@@ -176,13 +187,41 @@ elastic_net_wrapper_pooled <- function(data, outcome=NULL, by=NULL,predictors_co
     }
   }
   
+  # Scaling numeric data on the between level
+  if (scaling==T){
+    for (entry in 1:length(analysis_list)){
+      for(variable in between_predictors_con){
+        mean_variable = mean(as.numeric(unlist(analysis_list[[entry]][[2]][,variable])),na.rm=T)
+        sd_variable = sd(as.numeric(unlist(analysis_list[[entry]][[2]][,variable])),na.rm=T)
+        if(sd_variable==0){
+          analysis_list[[entry]][[2]][,variable] = as.numeric(unlist(analysis_list[[entry]][[2]][,variable]))-mean_variable
+          analysis_list[[entry]][[4]] = lapply(analysis_list[[entry]][[4]], function (x){x[,variable]=(x[,variable]-mean_variable)/sd_variable 
+          return(x)})
+          next}
+        analysis_list[[entry]][[2]][,variable] = (as.numeric(unlist(analysis_list[[entry]][[2]][,variable]))-mean_variable)/sd_variable
+        analysis_list[[entry]][[4]] = lapply(analysis_list[[entry]][[4]], function (x){x[,variable]=(x[,variable]-mean_variable)/sd_variable 
+        return(x)})
+      }
+    }
+  }
+
   # creating the results dataframe
   results_list = list()
-  results_df_model = data.frame(matrix(ncol = (3+length(predictors))))
-  colnames(results_df_model) = c('fold','nrow_train','ny_train',predictors)
-  results_df_pooled = data.frame(matrix(ncol = 10))
-  colnames(results_df_pooled) = c('by','fold','nrow_test','ny_test','AUC','sensitivity','specificity',
-                                  'accuracy','PPV','NPV')
+  
+  if (family==('binary')){
+    results_df_model = data.frame(matrix(ncol = (3+length(predictors))))
+    colnames(results_df_model) = c('fold','nrow_train','ny_train',predictors)
+    results_df_pooled = data.frame(matrix(ncol = (10)))
+    colnames(results_df_pooled) = c('by','fold','nrow_test','ny_test','AUC','sensitivity','specificity',
+                                    'accuracy','PPV','NPV')
+  }
+  else if (family==('continuous')){
+    results_df_model = data.frame(matrix(ncol = (3+length(predictors))))
+    colnames(results_df_model) = c('fold','nrow_train','mean_y_train',predictors)
+    results_df_pooled = data.frame(matrix(ncol = (9)))
+    colnames(results_df_pooled) = c('by','fold','nrow_test','mean_y_test','R2','R2_adjusted','RMSE','MSE',
+                                    'MAE')
+  }
   
   # Create progress bar
   print('Training and evaluating the models')
@@ -226,13 +265,16 @@ elastic_net_wrapper_pooled <- function(data, outcome=NULL, by=NULL,predictors_co
     ensr_cv <<- ensr_cv
     ensr_alphas <<- ensr_alphas
     
+    # get ensr family
+    ensr_family <<- ifelse(family=='binary','binomial','gaussian')
+    
     for (repeated_cv_number in 1:repeated_cv){
       
       # setting the seed
       set.seed(repeated_cv_number)
       # selecting the best alpha and lambda for this seed
       ensr_obj <- ensr(y =data.matrix(y_train_entry), x = x_train_entry,nlambda=ensr_lambdas,nfolds = ensr_cv,
-                       alphas = ensr_alphas,family='binomial',standardize = F)
+                       alphas = ensr_alphas,family=ensr_family,standardize = F)
       ensr_obj_summary <- summary(object = ensr_obj)
       
       # storing the results
@@ -254,7 +296,7 @@ elastic_net_wrapper_pooled <- function(data, outcome=NULL, by=NULL,predictors_co
     lambda.min <- MSEs$lambdas[1]
     
     # fitting the elastic net model and getting the estimates for the variables
-    elastic_model <- glmnet(y =data.matrix(y_train_entry), x = x_train_entry, family = 'binomial', alpha = alpha.min,
+    elastic_model <- glmnet(y =data.matrix(y_train_entry), x = x_train_entry, family = ensr_family, alpha = alpha.min,
                             lambda=lambda.min,standardize = F)
     estimates <- elastic_model$beta
     
@@ -263,15 +305,22 @@ elastic_net_wrapper_pooled <- function(data, outcome=NULL, by=NULL,predictors_co
       MSEs <- MSEs[-1,]
       lambda.min <- MSEs$lambdas[1]
       alpha.min <- MSEs$alphas[1]
-      elastic_model <- glmnet(y =data.matrix(y_train_entry), x = x_train_entry, family = 'binomial',
+      elastic_model <- glmnet(y =data.matrix(y_train_entry), x = x_train_entry, family = ensr_family,
                               alpha = alpha.min,lambda=lambda.min,standardize = F)
       estimates <- elastic_model$beta
     }
     
     # Store predictors model
-    results_df_model[entry,'fold'] = entry
-    results_df_model[entry,'nrow_train']=nrow(x_train_entry)
-    results_df_model[entry,'ny_train']=sum(as.numeric(as.character(unlist(y_train_entry))))
+    if (family==('binary')){
+      results_df_model[entry,'fold'] = entry
+      results_df_model[entry,'nrow_train']=nrow(x_train_entry)
+      results_df_model[entry,'ny_train']=sum(as.numeric(as.character(unlist(y_train_entry))))
+    }
+    else if (family==('continuous')){
+      results_df_model[entry,'fold'] = entry
+      results_df_model[entry,'nrow_train']=nrow(x_train_entry)
+      results_df_model[entry,'mean_y_train']=mean(as.numeric(as.character(unlist(y_train_entry))))
+    }
     
     # storing estimates
     for (predictor in predictors){
@@ -293,7 +342,8 @@ elastic_net_wrapper_pooled <- function(data, outcome=NULL, by=NULL,predictors_co
       
       # Stopping if there aren't enough observations in the training data
       if (is.null(stop_test)==F){
-        if (sum(as.numeric(as.character(unlist(y_test_by))))<stop_test){next}
+        if (family == 'binary'){if (sum(as.numeric(as.character(unlist(y_test_by))))<stop_test){next}}
+        else if (family=='continuous'){if (length(unlist(y_test_by))<stop_test){next}}
       }
       
       # having at least two levels
@@ -310,29 +360,57 @@ elastic_net_wrapper_pooled <- function(data, outcome=NULL, by=NULL,predictors_co
         x_test_by = x_test_by[, !colnames(x_test_by) %in% c(name)]
       }
       
-      # AUC, sensitivity, specificity
-      predictions = predict(elastic_model, newx=x_test_by,type = "response")
-      model_roc =  roc(unlist(y_test_by),as.numeric(predictions),direction="<",quiet=T)
-      model_coords = coords(model_roc,"best", ret=c("threshold", "specificity", "sensitivity"), transpose=FALSE)
-      model_auc = auc(model_roc)
-      model_spec <- model_coords[2]
-      model_sens <- model_coords[3]
-      
-      # accuracy, PPV, NPV
-      predictions_bin = ifelse(predictions>model_coords$threshold,1,0)
-      confmatrix <- confusionMatrix(as.factor(predictions_bin),as.factor(unlist(y_test_by)),positive='1')
-      
-      # storing metrics
-      results_df_pooled[((entry-1)*length(unique(unlist(data[by])))+by_index),'by']=by_entry
-      results_df_pooled[((entry-1)*length(unique(unlist(data[by])))+by_index),'fold']=entry
-      results_df_pooled[((entry-1)*length(unique(unlist(data[by])))+by_index),'nrow_test']=nrow(x_test_by)
-      results_df_pooled[((entry-1)*length(unique(unlist(data[by])))+by_index),'ny_test']=sum(as.numeric(as.character(unlist(y_test_by))))
-      results_df_pooled[((entry-1)*length(unique(unlist(data[by])))+by_index),'AUC']=model_auc
-      results_df_pooled[((entry-1)*length(unique(unlist(data[by])))+by_index),'sensitivity']=model_sens
-      results_df_pooled[((entry-1)*length(unique(unlist(data[by])))+by_index),'specificity']=model_spec
-      results_df_pooled[((entry-1)*length(unique(unlist(data[by])))+by_index),'accuracy']=confmatrix$overall[1]
-      results_df_pooled[((entry-1)*length(unique(unlist(data[by])))+by_index),'PPV']=confmatrix$byClass[3]
-      results_df_pooled[((entry-1)*length(unique(unlist(data[by])))+by_index),'NPV']=confmatrix$byClass[4]
+      if (family=='binary'){
+        # AUC, sensitivity, specificity
+        predictions = predict(elastic_model, newx=x_test_by,type = "response")
+        model_roc =  roc(unlist(y_test_by),as.numeric(predictions),direction="<",quiet=T)
+        model_coords = coords(model_roc,"best", ret=c("threshold", "specificity", "sensitivity"), transpose=FALSE)
+        model_auc = auc(model_roc)
+        ifelse(nrow(model_coords[2])>1,model_spec <- NA, model_spec <- model_coords[2])
+        ifelse(nrow(model_coords[2])>1,model_sens <- NA, model_sens <- model_coords[3])
+        
+        # accuracy, PPV, NPV
+        predictions_bin = ifelse(predictions>model_coords$threshold,1,0)
+        confmatrix <- confusionMatrix(as.factor(predictions_bin),as.factor(unlist(y_test_by)),positive='1')
+        
+        # storing metrics
+        results_df_pooled[((entry-1)*length(unique(unlist(data[by])))+by_index),'by']=by_entry
+        results_df_pooled[((entry-1)*length(unique(unlist(data[by])))+by_index),'fold']=entry
+        results_df_pooled[((entry-1)*length(unique(unlist(data[by])))+by_index),'nrow_test']=nrow(x_test_by)
+        results_df_pooled[((entry-1)*length(unique(unlist(data[by])))+by_index),'ny_test']=sum(as.numeric(as.character(unlist(y_test_by))))
+        results_df_pooled[((entry-1)*length(unique(unlist(data[by])))+by_index),'AUC']=model_auc
+        results_df_pooled[((entry-1)*length(unique(unlist(data[by])))+by_index),'sensitivity']=model_sens
+        results_df_pooled[((entry-1)*length(unique(unlist(data[by])))+by_index),'specificity']=model_spec
+        results_df_pooled[((entry-1)*length(unique(unlist(data[by])))+by_index),'accuracy']=confmatrix$overall[1]
+        results_df_pooled[((entry-1)*length(unique(unlist(data[by])))+by_index),'PPV']=confmatrix$byClass[3]
+        results_df_pooled[((entry-1)*length(unique(unlist(data[by])))+by_index),'NPV']=confmatrix$byClass[4]
+      }
+      else if (family=='continuous'){
+        
+        # Making predictions
+        predictions = predict(elastic_model, newx=x_test_by,type = "response")
+        
+        if (is.null(pred_min)==F){predictions[predictions<pred_min]=pred_min}
+        if (is.null(pred_max)==F){predictions[predictions>pred_max]=pred_max}
+        
+        # Getting R2, adjusted R2, RMSE, MSE, MAE
+        R2 = 1-(sum((y_test_by-predictions)^2)/length(y_test_by))/(sum((y_test_by-mean(unlist(y_train_entry)))^2)/length(y_test_by))
+        R2_adjusted = 1 - (1-R2)*(length(y_test_by)-1)/(length(y_test_by)-length(which(estimates!=0))-1)
+        RMSE = RMSE(y_test_by,predictions)
+        MSE = RMSE^2
+        MAE = MAE(y_test_by,predictions)
+        
+        # storing metrics
+        results_df_pooled[((entry-1)*length(unique(unlist(data[by])))+by_index),'by']=by_entry
+        results_df_pooled[((entry-1)*length(unique(unlist(data[by])))+by_index),'fold']=entry
+        results_df_pooled[((entry-1)*length(unique(unlist(data[by])))+by_index),'nrow_test']=nrow(x_test_by)
+        results_df_pooled[((entry-1)*length(unique(unlist(data[by])))+by_index),'mean_y_test']=mean(y_test_by)
+        results_df_pooled[((entry-1)*length(unique(unlist(data[by])))+by_index),'R2']=R2
+        results_df_pooled[((entry-1)*length(unique(unlist(data[by])))+by_index),'R2_adjusted']=R2_adjusted
+        results_df_pooled[((entry-1)*length(unique(unlist(data[by])))+by_index),'RMSE']=RMSE
+        results_df_pooled[((entry-1)*length(unique(unlist(data[by])))+by_index),'MSE']=MSE
+        results_df_pooled[((entry-1)*length(unique(unlist(data[by])))+by_index),'MAE']=MAE
+      }
     }
     
     # updating progress bar
@@ -344,13 +422,22 @@ elastic_net_wrapper_pooled <- function(data, outcome=NULL, by=NULL,predictors_co
     rm(ensr_cv,envir = .GlobalEnv)
     rm(ensr_alphas,envir = .GlobalEnv)
   }
+  
+  results_list$results_pooled_model=results_df_model
+  results_list$results_by=results_df_pooled
+  
   # close progress bar
   close(pb)
   
-  # Store results
-  results_list$model_information=results_df_model
-  results_list$model_results=results_df_pooled
-  
-  # Return results
+  # return df
   return(results_list)
 }
+
+within_between_split_one_participant <- function(data,variable){
+  mean_variable <- mean(as.numeric(data[[variable]]),na.rm=T)
+  within_variable <- data.frame(as.numeric(data[[variable]])-mean_variable)
+  within_variable$between_variable <- mean_variable
+  results <- setNames(within_variable,c(paste(variable,'_within',sep=""),paste(variable,'_between',sep="")))
+  return(results)
+}
+
