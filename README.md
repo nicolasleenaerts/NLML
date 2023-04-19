@@ -1,6 +1,6 @@
 # MBR_ML
 
-This github repository stores the machine learning tools of the Mind Body Research Group of the KU Leuven. It includes several scripts using elastic net regularized regression, BISCUIT, random forest and gradient boosting. The scripts in this repository were developed to build person-specific and pooled prediction models for binge eating, binge drinking and alcohol use with ecological momentary assessment data. However, they can be used in all kinds of contexts.
+This github repository stores the machine learning tools of the Mind Body Research Group of the KU Leuven. The scripts in this repository were developed to build person-specific and pooled prediction models for binge eating, binge drinking and alcohol use with ecological momentary assessment data. However, they can be used in all kinds of contexts.
 
 ### Elastic Net
 
