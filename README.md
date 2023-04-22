@@ -34,5 +34,7 @@ You have the option of specifying the minumum and maximum predicted outcome for 
 
 You have to enter continuous and categorical predictors seperately with the 'predictors_con' and 'predictors_cat' arguments. Furthermore, if you are using the wrapper for the pooled models, then you have to seperate within- and between-subject predictors by entering the within-subject predictors with the 'predictors_con' and 'predictors_cat' arguments and the between-subject predictors with the 'between_predictors_con' and 'between_predictors_cat' arguments. 
 
+The wrapper can stadardize the continuous predictors with the 'scale' argument. The pooled wrapper while scale the predictors specifief 
+
 
 
