@@ -133,18 +133,7 @@ elastic_net_wrapper <- function(data, outcome=NULL, predictors_con=NULL,predicto
         x_train_entry[,variable] = (as.numeric(unlist(x_train_entry[,variable]))-mean_variable)/sd_variable
         x_test_entry[,variable] = (as.numeric(unlist(x_test_entry[,variable]))-mean_variable)/sd_variable
       }
-    }    
-    
-    # transforming to a data matrix
-    x_train_entry = data.matrix(x_train_entry)
-    x_test_entry = data.matrix(x_test_entry)
-    
-    # correcting dummy coded variables
-    # identify binary data
-    binary_predictors = colnames(x_train_entry)[which(apply(x_train_entry,2,function(x) { all(x %in% 0:1) })==T)]
-    binary_predictors = subset(binary_predictors,binary_predictors%!in%colnames(x_train_entry)[grepl('numeric',sapply(x_train_entry,class))])
-    x_train_entry[,c(binary_predictors)]<- x_train_entry[,c(binary_predictors)]-1
-    x_test_entry[,c(binary_predictors)]<- x_test_entry[,c(binary_predictors)]-1
+    }
     
     # removing variables with no variance from the training data
     for (name in colnames(x_train_entry)){
@@ -153,6 +142,18 @@ elastic_net_wrapper <- function(data, outcome=NULL, predictors_con=NULL,predicto
         x_test_entry = x_test_entry[, !colnames(x_test_entry) %in% c(name)]
       }
     }
+    
+    # identify binary data
+    binary_predictors = colnames(x_train_entry)[which(apply(x_train_entry,2,function(x) { all(x %in% 0:1) })==T)]
+    binary_predictors = subset(binary_predictors,binary_predictors%!in%colnames(x_train_entry)[grepl('numeric',sapply(x_train_entry,class))])
+    
+    # transforming to a data matrix
+    x_train_entry = data.matrix(x_train_entry)
+    x_test_entry = data.matrix(x_test_entry)
+    
+    # correcting dummy coded variables
+    x_train_entry[,c(binary_predictors)]<- x_train_entry[,c(binary_predictors)]-1
+    x_test_entry[,c(binary_predictors)]<- x_test_entry[,c(binary_predictors)]-1
     
     # finding best lambda and alpha
     
