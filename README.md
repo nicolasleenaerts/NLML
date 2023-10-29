@@ -4,3 +4,9 @@ NLML is a github repository containing scripts which make performing methodologi
 
 ## Getting started
 
+
+## Materials
+
+Looking for information on how you can use the scripts? Consult the wiki!
+
+[NLML WIKI](https://github.com/mikojeske/NLML/wiki/General)
