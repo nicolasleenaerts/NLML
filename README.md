@@ -1,6 +1,6 @@
-# MBR_ML
+# NLML
 
-This github repository stores the machine learning tools of the Mind Body Research Group of the KU Leuven. The scripts in this repository were developed to build person-specific and pooled prediction models for binge eating, binge drinking and alcohol use with ecological momentary assessment data. However, they can be used in all kinds of contexts.
+This github repository stores my (Nicolas Leenaerts, KU Leuven) machine learning tools. The scripts in this repository were developed to build person-specific and pooled prediction models for binge eating, binge drinking and alcohol use with ecological momentary assessment data. However, they can be used in all kinds of contexts.
 
 ## Elastic Net
 
