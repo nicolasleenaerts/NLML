@@ -17,4 +17,4 @@ As of yet, the functions have not been included in an R package. Therefore, you 
 
 Looking for information on how you can use the scripts? Consult the wiki!
 
-[NLML WIKI](https://github.com/mikojeske/NLML/wiki/General)
+[NLML WIKI](https://github.com/mikojeske/NLML/wiki/)
