@@ -5,7 +5,7 @@ NLML is a github repository containing scripts which make performing methodologi
 ## Getting started
 As of yet, the functions have not been included in an R package. Therefore, you need to follow these steps to use the functions:
 
-1. Download the the functions you are interested in to a local folder
+1. Download the functions you are interested in to a local folder
    
 2. Source the functions: \
 `setwd('/User/test/NLML')` \
