@@ -137,7 +137,7 @@ elastic_net_wrapper <- function(data, outcome=NULL, predictors_con=NULL,predicto
     
     # removing variables with no variance from the training data
     for (name in colnames(x_train_entry)){
-      if (length(unique(x_train_entry[,name]))<2){
+      if (length(unique(unlist(x_train_entry[,name])))<2){
         x_train_entry = x_train_entry[, !colnames(x_train_entry) %in% c(name)]
         x_test_entry = x_test_entry[, !colnames(x_test_entry) %in% c(name)]
       }
@@ -254,18 +254,18 @@ elastic_net_wrapper <- function(data, outcome=NULL, predictors_con=NULL,predicto
       if (is.null(pred_max)==F){predictions[predictions>pred_max]=pred_max}
       
       # Getting R2, adjusted R2, RMSE, MSE, MAE
-      R2 = 1-(sum((y_test_entry-predictions)^2)/length(y_test_entry))/(sum((y_test_entry-mean(unlist(y_train_entry)))^2)/length(y_test_entry))
-      R2_adjusted = 1 - (1-R2)*(length(y_test_entry)-1)/(length(y_test_entry)-length(which(estimates!=0))-1)
-      RMSE = RMSE(y_test_entry,predictions)
+      R2 = 1-(sum((y_test_entry-predictions)^2)/length(unlist(y_test_entry)))/(sum((y_test_entry-mean(unlist(y_train_entry)))^2)/length(unlist(y_test_entry)))
+      R2_adjusted = 1 - (1-R2)*(length(unlist(y_test_entry))-1)/(length(unlist(y_test_entry))-length(which(estimates!=0))-1)
+      RMSE = RMSE(unlist(y_test_entry),predictions)
       MSE = RMSE^2
-      MAE = MAE(y_test_entry,predictions)
+      MAE = MAE(unlist(y_test_entry),predictions)
       
       # storing metrics
       results_df[entry,'fold']=entry
       results_df[entry,'nrow_train']=nrow(x_train_entry)
       results_df[entry,'nrow_test']=nrow(x_test_entry)
-      results_df[entry,'mean_y_train']=mean(y_train_entry)
-      results_df[entry,'mean_y_test']=mean(y_test_entry)
+      results_df[entry,'mean_y_train']=mean(unlist(y_train_entry))
+      results_df[entry,'mean_y_test']=mean(unlist(y_test_entry))
       results_df[entry,'R2']=R2
       results_df[entry,'R2_adjusted']=R2_adjusted
       results_df[entry,'RMSE']=RMSE
