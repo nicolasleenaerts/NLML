@@ -1,4 +1,4 @@
-NLML_plot <- function(results_estimates,percentile=0.90,ci=TRUE,title=NULL,subtitle=NULL,xlim=NULL,ylab='Outcome',xlab='Estimate', gradient_values= c(-1.5,-1,-0.5,-0,0.25,0.5,0.75,1,1.5,2,2.5)){
+NLML_plot <- function(results_estimates,percentile=0.90,ci=TRUE,title=NULL,subtitle=NULL,xlim=NULL,ylab='Predictor',xlab='Estimate', gradient_values= c(-1.5,-1,-0.5,0,0.25,0.5,0.75,1,1.5,2,2.5)){
   # Loading libraries
   require(ggplot2)
   require(dplyr)
@@ -29,12 +29,12 @@ NLML_plot <- function(results_estimates,percentile=0.90,ci=TRUE,title=NULL,subti
                       aes(x=mean_estimate,y=fct_reorder(variable,mean_estimate)))
   
   # Add 95% segments
-  if (ci==T){
-    plot <- base_plot + geom_segment(aes(x=P025,xend=P975,yend=variable,color=mean_estimate),size=3)
+  if (ci==TRUE){
+    base_plot <- base_plot + geom_segment(aes(x=P025,xend=P975,yend=variable,color=mean_estimate),size=3)
   }
   
   # Finish plot
-  plot <- plot +
+  plot <- base_plot +
     
     # Add 0 line
     geom_vline(xintercept = 0, lty = 2, size = 0.2) +
