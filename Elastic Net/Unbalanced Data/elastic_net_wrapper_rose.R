@@ -139,8 +139,8 @@ elastic_net_wrapper_rose <- function(data, outcome=NULL, predictors_con=NULL,pre
     y_train_entry = as.factor(y_train_entry)
     
     # correcting unbalanced data with ROSE
-    if (is.null(NROSE)==T){NROSE=nrow(x_train_entry)}
-    data_rose = ROSE(y_train_entry~., data=data.frame(cbind(y_train_entry,x_train_entry),p=pROSE,N=NROSE), seed=seed)$data
+    if (is.null(NROSE)==T){NROSE=length(y_train_entry)}
+    data_rose = ROSE(y_train_entry~., data=data.frame(cbind(y_train_entry,x_train_entry)),seed=seed,p=pROSE,N=NROSE)$data
     y_train_entry = data.matrix(data_rose[,1])
     x_train_entry = data.matrix(data_rose[,-1])
     
