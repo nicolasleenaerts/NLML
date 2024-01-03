@@ -154,28 +154,12 @@ elastic_net_wrapper_mi <- function(data, outcome=NULL, predictors_con=NULL,predi
     }
   }
   
-  # creating the results dataframe
-  if (family==('binary')){
-    results_df = data.frame(matrix(ncol = (11+length(predictors))))
-    colnames(results_df) = c('fold','nrow_train','nrow_test','ny_train','ny_test','AUC','sensitivity','specificity',
-                             'accuracy','PPV','NPV',predictors)
-  }
-  if (family==('continuous')){
-    results_df = data.frame(matrix(ncol = (10+length(predictors))))
-    colnames(results_df) = c('fold','nrow_train','nrow_test','mean_y_train','mean_y_test','R2','R2_adjusted','RMSE','MSE',
-                             'MAE',predictors)
-  }
-  
-  # Create progress bar
-  print('Training and evaluating the models')
-  pb = txtProgressBar(min = 0, max = length(analysis_list), initial = 0) 
-  
-  # Training and testing the elastic net
-  for (entry in 1:length(analysis_list)){
+  # fit models
+  results_model_fitting = foreach (entry=c(1:length(analysis_list))) %:%  foreach(imputation = 1:m_mice,.packages = c('mice','glmnet','ensr')) %dopar% {
     
     # getting the training and testing data
     y_train_entry = analysis_list[[entry]][[1]]
-    y_test_entry= analysis_list[[entry]][[2]]
+    y_test_entry = analysis_list[[entry]][[2]]
     x_train_entry= analysis_list[[entry]][[3]]
     x_test_entry= analysis_list[[entry]][[4]]
     
@@ -193,6 +177,7 @@ elastic_net_wrapper_mi <- function(data, outcome=NULL, predictors_con=NULL,predi
         x_test_entry[,variable] = (as.numeric(unlist(x_test_entry[,variable]))-mean_variable)/sd_variable
       }
     }
+    
     # removing variables with no variance from the training data
     for (name in colnames(x_train_entry)){
       if (length(unique(unlist(x_train_entry[,name])))<2){
@@ -237,10 +222,11 @@ elastic_net_wrapper_mi <- function(data, outcome=NULL, predictors_con=NULL,predi
       } else { # don't include test data
         rows_to_ignore = c(rep(FALSE,nrow(x_train_entry)))
         data_to_impute = x_train_entry
-        } 
+      } 
     }
     
     # imputation
+    set.seed(seed)
     invisible(capture.output({
       data_imputed = mice(data_to_impute,m=m_mice,method=method_mice,seed=seed,ignore = rows_to_ignore)
     }))
@@ -251,200 +237,224 @@ elastic_net_wrapper_mi <- function(data, outcome=NULL, predictors_con=NULL,predi
     } else { # 'Multiple imputation then delete (MID)' is false
       train_indices_imputed = c(1:nrow(x_train_entry))
     }
-  
+    
+    # get x_train an y_train imputed
+    if (include_outcome_imputation==T){ # if the outcome was used in the imputation
+      y_train_imputation = complete(data_imputed,imputation)[train_indices_imputed,ncol(complete(data_imputed,imputation))]
+      x_train_imputation = complete(data_imputed,imputation)[train_indices_imputed,-ncol(complete(data_imputed,imputation))]
+    }  else { # if the outcome was not used in the imputation
+      y_train_imputation = y_train_entry[train_indices_imputed]
+      x_train_imputation = complete(data_imputed,imputation)[train_indices_imputed,]
+    }
+    
     # find best elastic net model for each imputed data set
-    results_imputed_all = foreach(imputation = 1:m_mice,.combine = 'rbind',.packages = c('mice','glmnet','ensr')) %dopar% {
-
-      # get x_train an y_train imputed
-      if (include_outcome_imputation==T){ # if the outcome was used in the imputation
-          y_train_imputation = complete(data_imputed,imputation)[train_indices_imputed,ncol(complete(data_imputed,imputation))]
-          x_train_imputation = complete(data_imputed,imputation)[train_indices_imputed,-ncol(complete(data_imputed,imputation))]
-        }  else { # if the outcome was not used in the imputation
-          y_train_imputation = y_train_entry[train_indices_imputed]
-          x_train_imputation = complete(data_imputed,imputation)[train_indices_imputed,]
-        }
-
-      ## finding best lambda and alpha
+    # finding best lambda and alpha
+    
+    # creating a variable for storing the crossvalidation results for the alphas and the lambdas
+    MSEs = NULL
+    
+    # store variables for  ensr
+    x_train_imputation <<- x_train_imputation
+    y_train_imputation <<- y_train_imputation
+    ensr_lambdas <<- ensr_lambdas
+    ensr_cv <<- ensr_cv
+    ensr_alphas <<- ensr_alphas
+    
+    # get ensr family
+    ensr_family <<- ifelse(family=='binary','binomial','gaussian')
+    
+    for (repeated_cv_number in 1:repeated_cv){
       
-      # creating a variable for storing the crossvalidation results for the alphas and the lambdas
-      MSEs = NULL
+      # setting the seed
+      set.seed(repeated_cv_number)
+      # selecting the best alpha and lambda for this seed
+      ensr_obj = ensr(y =data.matrix(y_train_imputation), x = data.matrix(x_train_imputation),nlambda=ensr_lambdas,nfolds = ensr_cv,
+                      alphas = ensr_alphas,family=ensr_family,standardize = F)
+      ensr_obj_summary = summary(object = ensr_obj)
       
-      # store variables for  ensr
-      x_train_imputation <<- x_train_imputation
-      y_train_imputation <<- y_train_imputation
-      ensr_lambdas <<- ensr_lambdas
-      ensr_cv <<- ensr_cv
-      ensr_alphas <<- ensr_alphas
-      
-      # get ensr family
-      ensr_family <<- ifelse(family=='binary','binomial','gaussian')
-      
-      for (repeated_cv_number in 1:repeated_cv){
-        
-        # setting the seed
-        set.seed(repeated_cv_number)
-        # selecting the best alpha and lambda for this seed
-        ensr_obj = ensr(y =data.matrix(y_train_imputation), x = data.matrix(x_train_imputation),nlambda=ensr_lambdas,nfolds = ensr_cv,
-                        alphas = ensr_alphas,family=ensr_family,standardize = F)
-        ensr_obj_summary = summary(object = ensr_obj)
-        
-        # storing the results
-        MSEs = cbind(MSEs,ensr_obj_summary$cvm)
-      }
-      
-      # converting the cross validation results to a dataframe
-      MSEs = as.data.frame(MSEs)
-      MSEs$rowMeans = rowMeans(MSEs)
-      
-      # adding the alphas and lambdas that we used
-      # these are the same for every seed!
-      MSEs$lambdas = ensr_obj_summary$lambda
-      MSEs$alphas= ensr_obj_summary$alpha
-      MSEs = MSEs[order(MSEs$rowMeans,decreasing = F), ]
-      
-      # Selecting the  alpha and the lambda of the best model
-      alpha.min = MSEs$alphas[1]
+      # storing the results
+      MSEs = cbind(MSEs,ensr_obj_summary$cvm)
+    }
+    
+    # converting the cross validation results to a dataframe
+    MSEs = as.data.frame(MSEs)
+    MSEs$rowMeans = rowMeans(MSEs)
+    
+    # adding the alphas and lambdas that we used
+    # these are the same for every seed!
+    MSEs$lambdas = ensr_obj_summary$lambda
+    MSEs$alphas= ensr_obj_summary$alpha
+    MSEs = MSEs[order(MSEs$rowMeans,decreasing = F), ]
+    
+    # Selecting the  alpha and the lambda of the best model
+    alpha.min = MSEs$alphas[1]
+    lambda.min = MSEs$lambdas[1]
+    
+    # fitting the elastic net model and getting the estimates for the variables
+    elastic_model = glmnet(y =data.matrix(y_train_imputation), x = x_train_imputation, family = ensr_family, alpha = alpha.min,
+                           lambda=lambda.min,standardize = F)
+    estimates = elastic_model$beta
+    
+    # having at least one parameter
+    while (length(which(estimates!=0))<1){
+      MSEs = MSEs[-1,]
       lambda.min = MSEs$lambdas[1]
-      
-      # fitting the elastic net model and getting the estimates for the variables
-      elastic_model = glmnet(y =data.matrix(y_train_imputation), x = x_train_imputation, family = ensr_family, alpha = alpha.min,
-                             lambda=lambda.min,standardize = F)
+      alpha.min = MSEs$alphas[1]
+      elastic_model = glmnet(y =data.matrix(y_train_imputation), x = x_train_imputation, family = ensr_family,
+                             alpha = alpha.min,lambda=lambda.min,standardize = F)
       estimates = elastic_model$beta
+    }
+    
+    # create results list
+    results_imputation = list()
+    
+    # store estimates
+    estimates_imputation = data.frame(matrix(ncol=(ncol(x_train_entry)+1),nrow=1))
+    colnames(estimates_imputation) = c('intercept',colnames(x_train_entry))
+    estimates_imputation[1,1] = elastic_model$a0
+    estimates_imputation[1,2:ncol(estimates_imputation)] = estimates
+    results_imputation[[1]] = estimates_imputation
+    
+    # store model
+    results_imputation[[2]] = elastic_model
+    
+    # store x_test_entry
+    if (include_missing_predictors_test==T|include_missing_outcome_test==T){
+      x_test_entry_imputation = complete(data_imputed,imputation)[-c(1:nrow(x_train_entry)),1:ncol(x_test_entry)]
+    } else { 
+      x_test_entry_imputation = x_test_entry
+    }
+    results_imputation[[3]] = x_test_entry_imputation
+    
+    # store y_test_entry
+    if (include_missing_outcome_test==T){
+      y_test_entry_imputation = complete(data_imputed,imputation)[-c(1:nrow(x_train_entry)),-c(1:ncol(x_test_entry))]
+    } else { 
+      y_test_entry_imputation = y_test_entry
+    }
+    results_imputation[[4]] = y_test_entry_imputation
+    
+    # store y_train_entry
+    results_imputation[[5]] = y_train_imputation
+    
+    # return results
+    return(results_imputation)
+  }
+  
+  # calculate metrics for cross-validation every fold
+  metrics = foreach (entry = c(1:length(results_model_fitting)),.combine = 'rbind') %:% foreach(imputation = 1:m_mice,.combine = 'rbind') %:% foreach(test_data_entry = 1:m_mice,.packages = c('pROC','caret'),.combine = 'rbind') %dopar% {
+    
+    # get the estimates for the imputation
+    estimates = as.numeric(results_model_fitting[[entry]][[imputation]][[1]])
+    
+    # predict test data
+    predictions_imputation = data.matrix(results_model_fitting[[entry]][[test_data_entry]][[3]])%*%estimates[2:length(estimates)]+estimates[1]
+    
+    # get the outcome of the test data
+    y_test_entry_imputation = results_model_fitting[[entry]][[test_data_entry]][[4]]
+    
+    # calculate metrics for a binary outcome
+    if (family=='binary') {
       
-      # having at least one parameter
-      while (length(which(estimates!=0))<1){
-        MSEs = MSEs[-1,]
-        lambda.min = MSEs$lambdas[1]
-        alpha.min = MSEs$alphas[1]
-        elastic_model = glmnet(y =data.matrix(y_train_imputation), x = x_train_imputation, family = ensr_family,
-                               alpha = alpha.min,lambda=lambda.min,standardize = F)
-        estimates = elastic_model$beta
+      # create results df 
+      results_df = data.frame(matrix(ncol = (11+length(predictors))))
+      colnames(results_df) = c('fold','imputation','test_data_entry','nrow_train','nrow_test','AUC','sensitivity','specificity',
+                               'accuracy','PPV','NPV',predictors)
+      
+      # store descriptives
+      results_df[1,'fold']=entry
+      results_df[1,'imputation']=imputation
+      results_df[1,'test_data_entry']=test_data_entry
+      results_df[1,'nrow_train']=nrow(analysis_list[[entry]][[3]])
+      results_df[1,'nrow_test']=nrow(analysis_list[[entry]][[4]])
+      
+      # Stopping if there aren't enough positive observations in the training data
+      if (is.null(stop_test)==F){
+        if (sum(as.numeric(as.character(unlist(y_test_entry_imputation))),na.rm=T)<stop_test){return(results_df)}
       }
       
-      # store results
-      results_imputation = data.frame(matrix(ncol=(ncol(x_train_entry)+1),nrow=1))
-      colnames(results_imputation) = c('intercept',colnames(x_train_entry))
-      results_imputation[1,1] = elastic_model$a0
-      results_imputation[1,2:ncol(results_imputation)] = estimates
-      
-      return(results_imputation)
-    }
-
-    # calculate metrics
-    
-    # get a list of x test data if it was imputed
-    if (include_missing_predictors_test==T|include_missing_outcome_test==T){
-      x_test_entry = lapply(1:m_mice,function (x){
-        complete(data_imputed,x)[-c(1:nrow(x_train_entry)),1:ncol(x_test_entry)]
-      })
-    } else { # create a alist if x test was not imputed
-      x_test_entry = list(x_test_entry)
-    }
-  
-    # aggregating imputed results
-    results_imputed_aggregated = colMeans(results_imputed_all)
-    
-    # Stopping if there aren't enough observations in the training data
-    if (is.null(stop_test)==F){
-      if (sum(as.numeric(as.character(unlist(y_test_entry))),na.rm=T)<stop_test){next}
-    }
-    
-    if (family=='binary'){
       # AUC, sensitivity, specificity
-      predictions_list = lapply(x_test_entry,function (x){
-        data.matrix(x)%*%results_imputed_aggregated[2:length(results_imputed_aggregated)]+results_imputed_aggregated[1]
-      })
-      predictions = as.numeric(rowMeans(do.call(cbind, predictions_list)))
-      predictions = exp(predictions)/(1+exp(predictions))
-      model_roc =  roc(unlist(y_test_entry),as.numeric(predictions),direction="<",quiet=T)
+      predictions_imputation = exp(predictions_imputation)/(1+exp(predictions_imputation))
+      model_roc =  roc(unlist(y_test_entry_imputation),as.numeric(predictions_imputation),direction="<",quiet=T)
       model_coords = coords(model_roc,"best", ret=c("threshold", "specificity", "sensitivity"), transpose=FALSE)
       model_auc = auc(model_roc)
       ifelse( nrow(model_coords[2])>1,model_spec <- NA, model_spec <- model_coords[2])
       ifelse( nrow(model_coords[2])>1,model_sens <- NA, model_sens <- model_coords[3])
       
-      # store predictions
-      predictions_all[test_indices_all[[entry]]] = predictions
-      
       # accuracy, PPV, NPV
-      predictions_bin = ifelse(predictions>model_coords$threshold,1,0)
-      confmatrix <- confusionMatrix(as.factor(predictions_bin),as.factor(unlist(y_test_entry)),positive='1')
+      predictions_bin = ifelse(predictions_imputation>model_coords$threshold,1,0)
+      confmatrix = confusionMatrix(as.factor(predictions_bin),as.factor(unlist(y_test_entry_imputation)),positive='1')
       
-      # storing metrics
-      results_df[entry,'fold']=entry
-      results_df[entry,'nrow_train']=nrow(x_train_entry)
-      results_df[entry,'nrow_test']=nrow(x_test_entry[[1]])
-      results_df[entry,'ny_train']=sum(as.numeric(as.character(unlist(y_train_entry))))
-      results_df[entry,'ny_test']=sum(as.numeric(as.character(unlist(y_test_entry))))
-      results_df[entry,'AUC']=model_auc
-      results_df[entry,'sensitivity']=model_sens
-      results_df[entry,'specificity']=model_spec
-      results_df[entry,'accuracy']=confmatrix$overall[1]
-      results_df[entry,'PPV']=confmatrix$byClass[3]
-      results_df[entry,'NPV']=confmatrix$byClass[4]
+      # store metrics
+      results_df[1,'AUC']=model_auc
+      results_df[1,'sensitivity']=model_sens
+      results_df[1,'specificity']=model_spec
+      results_df[1,'accuracy']=confmatrix$overall[1]
+      results_df[1,'PPV']=confmatrix$byClass[3]
+      results_df[1,'NPV']=confmatrix$byClass[4]
       
-    }
-    else if (family=='continuous'){
+      # storing estimates
+      for (predictor in predictors){
+        index = which(names(results_model_fitting[[entry]][[imputation]][[1]])==predictor)
+        if (length(index)==0){
+          results_df[1,predictor]<- NA
+        }
+        else{
+          results_df[1,predictor]<- results_model_fitting[[entry]][[imputation]][[1]][index]
+        }
+      }  
+    } else if (family=='continuous'){
       
-      # Getting the predictions
-      predictions_list = lapply(x_test_entry,function (x){
-        data.matrix(x)%*%results_imputed_aggregated[2:length(results_imputed_aggregated)]+results_imputed_aggregated[1]
-      })
-      predictions = as.numeric(rowMeans(do.call(cbind, predictions_list)))
-      if (is.null(pred_min)==F){predictions[predictions<pred_min]=pred_min}
-      if (is.null(pred_max)==F){predictions[predictions>pred_max]=pred_max}
+      # create results df 
+      results_df = data.frame(matrix(ncol = (10+length(predictors))))
+      colnames(results_df) = c('fold','imputation','test_data_entry','nrow_train','nrow_test','R2','R2_adjusted','RMSE','MSE',
+                               'MAE',predictors)
+      # store descriptives
+      results_df[1,'fold']=entry
+      results_df[1,'imputation']=imputation
+      results_df[1,'test_data_entry']=test_data_entry
+      results_df[1,'nrow_train']=nrow(analysis_list[[entry]][[3]])
+      results_df[1,'nrow_test']=nrow(analysis_list[[entry]][[4]])
       
-      # store predictions
-      predictions_all[test_indices_all[[entry]]] = predictions
+      # adapt predictions
+      if (is.null(pred_min)==F){predictions_imputation[predictions_imputation<pred_min]=pred_min}
+      if (is.null(pred_max)==F){predictions_imputation[predictions_imputation>pred_max]=pred_max}
       
       # Getting R2, adjusted R2, RMSE, MSE, MAE
-      R2 = 1-(sum((y_test_entry-predictions)^2)/length(unlist(y_test_entry)))/(sum((y_test_entry-mean(unlist(y_train_entry)))^2)/length(unlist(y_test_entry)))
-      R2_adjusted = 1 - (1-R2)*(length(unlist(y_test_entry))-1)/(length(unlist(y_test_entry))-length(which(estimates!=0))-1)
-      RMSE = RMSE(unlist(y_test_entry),predictions)
+      R2 = 1-(sum((y_test_entry_imputation-predictions_imputation)^2)/length(unlist(y_test_entry_imputation)))/(sum((y_test_entry_imputation-mean(unlist(results_model_fitting[[entry]][[test_data_entry]][[5]])))^2)/length(unlist(y_test_entry_imputation)))
+      R2_adjusted = 1 - (1-R2)*(length(unlist(y_test_entry_imputation))-1)/(length(unlist(y_test_entry_imputation))-length(which(estimates!=0))-1)
+      RMSE = RMSE(unlist(y_test_entry_imputation),predictions_imputation)
       MSE = RMSE^2
-      MAE = MAE(unlist(y_test_entry),predictions)
+      MAE = MAE(unlist(y_test_entry_imputation),predictions_imputation)
       
       # storing metrics
-      results_df[entry,'fold']=entry
-      results_df[entry,'nrow_train']=nrow(x_train_entry)
-      results_df[entry,'nrow_test']=nrow(x_test_entry[[1]])
-      results_df[entry,'mean_y_train']=mean(unlist(y_train_entry))
-      results_df[entry,'mean_y_test']=mean(unlist(y_test_entry))
-      results_df[entry,'R2']=R2
-      results_df[entry,'R2_adjusted']=R2_adjusted
-      results_df[entry,'RMSE']=RMSE
-      results_df[entry,'MSE']=MSE
-      results_df[entry,'MAE']=MAE
+      results_df[1,'R2']=R2
+      results_df[1,'R2_adjusted']=R2_adjusted
+      results_df[1,'RMSE']=RMSE
+      results_df[1,'MSE']=MSE
+      results_df[1,'MAE']=MAE
+      
+      # storing estimates
+      for (predictor in predictors){
+        index = which(names(results_model_fitting[[entry]][[imputation]][[1]])==predictor)
+        if (length(index)==0){
+          results_df[1,predictor]<- NA
+        }
+        else{
+          results_df[1,predictor]<- results_model_fitting[[entry]][[imputation]][[1]][index]
+        }
+      }  
     }
-    
-    # storing estimates
-    for (predictor in predictors){
-      index = which(names(results_imputed_aggregated)==predictor)
-      if (length(index)==0){
-        results_df[entry,predictor]<- NA
-      }
-      else{
-        results_df[entry,predictor]<- results_imputed_aggregated[index]
-      }
-    }
-    
-    # updating progress bar
-    setTxtProgressBar(pb,entry)
+    return(results_df)
   }
   
-  # close progress bar
-  close(pb)
-  
-  # remove stored variables
-  rm(x_train_entry,envir = .GlobalEnv)
-  rm(y_train_entry,envir = .GlobalEnv)
-  rm(ensr_lambdas,envir = .GlobalEnv)
-  rm(ensr_cv,envir = .GlobalEnv)
-  rm(ensr_alphas,envir = .GlobalEnv)
+  # aggregate results
+  metrics = aggregate(metrics[,-c(1,2,3)],list(fold=metrics$fold),mean,na.rm=T)
   
   # Create final results
   results = list()
-  results$metrics = results_df
-  results$predictions = predictions_all
+  results$metrics = metrics
+  results$results_model_fitting = results_model_fitting
   
   # stop cluster
   stopCluster(cl = cluster)
