@@ -1,4 +1,4 @@
-NLML_plot <- function(results_estimates,percentile=0.90,ci=TRUE,remove_null=T,title=NULL,subtitle=NULL,xlim=NULL,ylab='Outcome',xlab='Estimate', gradient_values= c(-1.5,-1,-0.5,-0,0.25,0.5,0.75,1,1.5,2,2.5)){
+NLML_plot <- function(results_estimates,percentile=0.90,range=TRUE,title=NULL,subtitle=NULL,xlim=NULL,ylab='Predictor',xlab='Estimate', gradient_values= c(-1.5,-1,-0.5,0,0.25,0.5,0.75,1,1.5,2,2.5)){
   # Loading libraries
   require(ggplot2)
   require(dplyr)
@@ -13,10 +13,6 @@ NLML_plot <- function(results_estimates,percentile=0.90,ci=TRUE,remove_null=T,ti
     group_by(variable) %>%
     summarise(mean_estimate = mean(estimate,na.rm=T),P025 = quantile(estimate, 0.025,na.rm=TRUE),P975 = quantile(estimate, 0.975,na.rm=TRUE))
   
-  # remove zeroes if wanted
-  if (remove_null==T){
-    summary_estimates=subset(summary_estimates,mean_estimate!=0)
-  }
   # Set colors
   green_red_palette <- brewer_pal(type = "div", palette = "RdYlGn")(11)
   green_red_palette_dark <- darken(green_red_palette, amount = 0.3)
@@ -33,7 +29,7 @@ NLML_plot <- function(results_estimates,percentile=0.90,ci=TRUE,remove_null=T,ti
                       aes(x=mean_estimate,y=fct_reorder(variable,mean_estimate)))
   
   # Add 95% segments
-  if (ci==TRUE){
+  if (range==TRUE){
     base_plot <- base_plot + geom_segment(aes(x=P025,xend=P975,yend=variable,color=mean_estimate),size=3)
   }
   

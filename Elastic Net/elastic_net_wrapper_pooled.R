@@ -432,12 +432,3 @@ elastic_net_wrapper_pooled <- function(data, outcome=NULL, by=NULL,predictors_co
   # return df
   return(results_list)
 }
-
-within_between_split_one_participant <- function(data,variable){
-  mean_variable <- mean(as.numeric(data[[variable]]),na.rm=T)
-  within_variable <- data.frame(as.numeric(data[[variable]])-mean_variable)
-  within_variable$between_variable <- mean_variable
-  results <- setNames(within_variable,c(paste(variable,'_within',sep=""),paste(variable,'_between',sep="")))
-  return(results)
-}
-
