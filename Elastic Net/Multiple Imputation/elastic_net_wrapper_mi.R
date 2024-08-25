@@ -2,7 +2,7 @@ elastic_net_wrapper_mi <- function(data, outcome=NULL, predictors_con=NULL,predi
                                    repeated_cv=1,ensr_cv=10,ensr_alphas=seq(0, 1, length = 10),ensr_lambdas=100,seed=404,
                                    stop_train=NULL,stop_test=NULL,family='binary',pred_min=NULL,pred_max=NULL,m_mice=5,method_mice=NULL,
                                    overall_imputation_strategy='informed',missingness_imputation_strategy = 'xy_train_x_test',
-                                   testing_strategy='mixed',MID=T,ncores=NULL,cluster_type="PSOCK"){
+                                   testing_strategy='mixed',MID=T,ncores=NULL,cluster_type="PSOCK",prefer_sensitivity=T){
   
   #### SET-UP ####
   # required packages
@@ -467,15 +467,23 @@ elastic_net_wrapper_mi <- function(data, outcome=NULL, predictors_con=NULL,predi
       # calculate the actual metrics
       if (overall_imputation_strategy=='full'|overall_imputation_strategy=='informed'){
         
-        # AUC, sensitivity, specificity
+        # AUC
         model_roc =  roc(unlist(imputed_data_list[[entry]][[test_data_entry]][[2]]),as.numeric(predictions_imputation),direction="<",quiet=T)
         model_coords = coords(model_roc,"best", ret=c("threshold", "specificity", "sensitivity"), transpose=FALSE)
         model_auc = auc(model_roc)
-        ifelse( nrow(model_coords[2])>1,model_spec <- NA, model_spec <- model_coords[2])
-        ifelse( nrow(model_coords[2])>1,model_sens <- NA, model_sens <- model_coords[3])
+        
+        # Sensitivity and specificity
+        if (prefer_sensitivity==T){
+          coords_to_pick = which(model_coords$sensitivity==max(model_coords$sensitivity))
+        }
+        else {
+          coords_to_pick = which(model_coords$specificity==max(model_coords$specificity))
+        }
+        model_spec <- model_coords[coords_to_pick,2]
+        model_sens <- model_coords[coords_to_pick,3]
         
         # accuracy, PPV, NPV
-        predictions_bin = ifelse(predictions_imputation>model_coords$threshold,1,0)
+        predictions_bin = ifelse(predictions_imputation>model_coords$threshold[coords_to_pick],1,0)
         confmatrix = confusionMatrix(as.factor(predictions_bin),as.factor(unlist(imputed_data_list[[entry]][[test_data_entry]][[2]])),positive='1')
         accuracy = confmatrix$overall[1]
         PPV = confmatrix$byClass[3]

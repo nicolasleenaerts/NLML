@@ -1,6 +1,6 @@
 elastic_net_wrapper_loocv <- function(data, outcome=NULL, predictors_con=NULL,predictors_cat=NULL, stratified=T,scaling=T,
                                          repeated_cv=1,ensr_cv=10,ensr_alphas=seq(0, 1, length = 10),ensr_lambdas=100,seed=404,shuffle=T,
-                                         stop_train=NULL,stop_test=NULL,family='binary',pred_min=NULL,pred_max=NULL){
+                                         stop_train=NULL,stop_test=NULL,family='binary',pred_min=NULL,pred_max=NULL,prefer_sensitivity=T){
   # required packages
   require(ensr)
   require(glmnet)
@@ -210,15 +210,23 @@ elastic_net_wrapper_loocv <- function(data, outcome=NULL, predictors_con=NULL,pr
   
   #calculate metrics
   if (family=='binary'){
-    # AUC, sensitivity, specificity
+    # AUC
     model_roc =  roc(results_df$y_test_original,results_df$y_test_predicted,direction="<",quiet=T)
     model_coords = coords(model_roc,"best", ret=c("threshold", "specificity", "sensitivity"), transpose=FALSE)
     model_auc = auc(model_roc)
-    ifelse(nrow(model_coords[2])>1,model_spec <- NA, model_spec <- model_coords[2])
-    ifelse(nrow(model_coords[2])>1,model_sens <- NA, model_sens <- model_coords[3])
+    
+    # Sensitivity and specificity
+    if (prefer_sensitivity==T){
+      coords_to_pick = which(model_coords$sensitivity==max(model_coords$sensitivity))
+    }
+    else {
+      coords_to_pick = which(model_coords$specificity==max(model_coords$specificity))
+    }
+    model_spec <- model_coords[coords_to_pick,2]
+    model_sens <- model_coords[coords_to_pick,3]
     
     # accuracy, PPV, NPV
-    predictions_bin = ifelse(results_df$y_test_predicted>model_coords$threshold,1,0)
+    predictions_bin = ifelse(results_df$y_test_predicted>model_coords$threshold[coords_to_pick],1,0)
     confmatrix <- confusionMatrix(as.factor(predictions_bin),as.factor(results_df$y_test_original),positive='1')
     
     # storing metrics
