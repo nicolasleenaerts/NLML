@@ -1,6 +1,6 @@
-mldataprepper <- function(data, outcome=NULL, predictors_con=NULL,predictors_cat=NULL, split=80, outer_cv=NULL, stratified=T,scaling=T,
-                                seed=404,shuffle=T,clean_columns=T){
+mldataprepper  <- function(data, outcome=NULL, predictors_con=NULL,predictors_cat=NULL, split=80, outer_cv=NULL, stratified=T,scaling=T,seed=404,shuffle=T,clean_columns=T){
   # required packages
+  require(caret)
   require(splitTools)
   `%!in%` = Negate(`%in%`)
   
@@ -17,8 +17,15 @@ mldataprepper <- function(data, outcome=NULL, predictors_con=NULL,predictors_cat
   y = data[outcome]
   x = data[predictors]
   
+  # create list to store the predictions
+  predictions_all = rep('Train',length(unlist(y)))
+  
+  # create list for test indices
+  test_indices = list()
+  
   # create list of x and y datasets to be analyzed
   analysis_list = list()
+  
   # split x and y into training and testing data
   if (is.null(outer_cv)==T){
     # performing stratified split
@@ -29,6 +36,8 @@ mldataprepper <- function(data, outcome=NULL, predictors_con=NULL,predictors_cat
         my_train_ind_no_y =  sample(which(y==0), size = split/100*length(which(y==0)))
         set.seed(seed)
         my_train_ind_y =  sample(which(y==1), size = split/100*length(which(y==1)))
+        # store test indices
+        test_indices[[1]] = c(1:length(unlist(y)))[c(1:length(unlist(y)))%!in%c(my_train_ind_no_y,my_train_ind_y)] 
         # split data
         y_train = y[c(my_train_ind_no_y,my_train_ind_y),]
         y_test =y[-c(my_train_ind_no_y,my_train_ind_y),]
@@ -41,6 +50,8 @@ mldataprepper <- function(data, outcome=NULL, predictors_con=NULL,predictors_cat
         # get indices
         set.seed(seed)
         my_train_ind =  createDataPartition(as.matrix(y), p = split/100, list = T,groups=min(3,nrow(y)))
+        # store test indices
+        test_indices[[1]] = c(1:length(unlist(y)))[c(1:length(unlist(y)))%!in%unlist(my_train_ind)]
         # split data
         y_train = y[c(unlist(my_train_ind)),]
         y_test =y[-c(unlist(my_train_ind)),]
@@ -54,6 +65,9 @@ mldataprepper <- function(data, outcome=NULL, predictors_con=NULL,predictors_cat
     else if(stratified==F){
       set.seed(seed)
       my_train_ind =  sample(c(1:nrow(y)), size = split/100*nrow(y))
+      # store test indices
+      test_indices[[1]] = c(1:length(unlist(y)))[c(1:length(unlist(y)))%!in%c(my_train_ind)] 
+      # split data
       y_train = y[c(my_train_ind),]
       y_test =y[-c(my_train_ind),]
       x_train = x[c(my_train_ind),]
@@ -75,6 +89,8 @@ mldataprepper <- function(data, outcome=NULL, predictors_con=NULL,predictors_cat
         x_train <- x[c(folds[[nfold]]), ]
         x_test <- x[-c(folds[[nfold]]), ]
         analysis_list[[nfold]] = list(y_train,y_test,x_train,x_test)
+        # store indices
+        test_indices[[nfold]] = c(1:length(unlist(y)))[c(1:length(unlist(y)))%!in%c(folds[[nfold]])] 
       }
     }
     else if(stratified==F){
@@ -86,34 +102,36 @@ mldataprepper <- function(data, outcome=NULL, predictors_con=NULL,predictors_cat
         x_train <- x[c(folds[[nfold]]), ]
         x_test <- x[-c(folds[[nfold]]), ]
         analysis_list[[nfold]] = list(y_train,y_test,x_train,x_test)
+        # store indices
+        test_indices[[nfold]] = c(1:length(unlist(y)))[c(1:length(unlist(y)))%!in%c(folds[[nfold]])] 
       }
     }
   }
   
-  # Training and testing the elastic net
+  # Scaling and cleaning data
   for (entry in 1:length(analysis_list)){
     
-      #scaling numeric data
-      if (scaling==T){
-        for(variable in predictors_con){
-          mean_variable = mean(as.numeric(unlist(analysis_list[[entry]][3][,variable])),na.rm=T)
-          sd_variable = sd(as.numeric(unlist(analysis_list[[entry]][3][,variable])),na.rm=T)
-          analysis_list[[entry]][3][,variable] = (as.numeric(unlist(analysis_list[[entry]][3][,variable]))-mean_variable)/sd_variable
-          analysis_list[[entry]][4][,variable] = (as.numeric(unlist(analysis_list[[entry]][4][,variable]))-mean_variable)/sd_variable
-        }
-      }
-      
-      # removing variables with no variance from the training data
-      if (clean_columns==T){
-        for (name in colnames(analysis_list[[entry]][3])){
-          if (length(unique(analysis_list[[entry]][3][,name]))<2){
-            analysis_list[[entry]][3] = analysis_list[[entry]][3][, !colnames(analysis_list[[entry]][3]) %in% c(name)]
-            analysis_list[[entry]][4] = analysis_list[[entry]][4][, !colnames(analysis_list[[entry]][4]) %in% c(name)]
-          }
-        }
+    #scaling numeric data
+    if (scaling==T){
+      for(variable in predictors_con){
+        mean_variable = mean(as.numeric(unlist(analysis_list[[entry]][[3]][,variable])),na.rm=T)
+        sd_variable = sd(as.numeric(unlist(analysis_list[[entry]][[3]][,variable])),na.rm=T)
+        analysis_list[[entry]][[3]][,variable] = (as.numeric(unlist(analysis_list[[entry]][[3]][,variable]))-mean_variable)/sd_variable
+        analysis_list[[entry]][[4]][,variable] = (as.numeric(unlist(analysis_list[[entry]][[4]][,variable]))-mean_variable)/sd_variable
       }
     }
     
-  # return df
+    if (clean_columns==T){
+      # removing variables with no variance from the training data
+      for (name in colnames(analysis_list[[entry]][[3]])){
+        if (length(unique(unlist(analysis_list[[entry]][[3]][,name])))<2){
+          analysis_list[[entry]][[3]] = analysis_list[[entry]][[3]][, !colnames(analysis_list[[entry]][[3]]) %in% c(name)]
+          analysis_list[[entry]][[4]] = analysis_list[[entry]][[4]][, !colnames(analysis_list[[entry]][[4]]) %in% c(name)]
+        }
+      }
+    }
+  }
+  
+  # return results
   return(analysis_list)
 }
