@@ -209,15 +209,15 @@ elastic_net_wrapper_pooled <- function(data, outcome=NULL, by=NULL,predictors_co
   results_list = list()
   
   if (family==('binary')){
-    results_df_model = data.frame(matrix(ncol = (3+length(predictors))))
-    colnames(results_df_model) = c('fold','nrow_train','ny_train',predictors)
+    results_df_model = data.frame(matrix(ncol = (5+length(predictors))))
+    colnames(results_df_model) = c('fold','alpha','lamda','nrow_train','ny_train',predictors)
     results_df_pooled = data.frame(matrix(ncol = (10)))
     colnames(results_df_pooled) = c('by','fold','nrow_test','ny_test','AUC','sensitivity','specificity',
                                     'accuracy','PPV','NPV')
   }
   else if (family==('continuous')){
-    results_df_model = data.frame(matrix(ncol = (3+length(predictors))))
-    colnames(results_df_model) = c('fold','nrow_train','mean_y_train',predictors)
+    results_df_model = data.frame(matrix(ncol = (5+length(predictors))))
+    colnames(results_df_model) = c('fold','alpha','lamda','nrow_train','mean_y_train',predictors)
     results_df_pooled = data.frame(matrix(ncol = (9)))
     colnames(results_df_pooled) = c('by','fold','nrow_test','mean_y_test','R2','R2_adjusted','RMSE','MSE',
                                     'MAE')
@@ -313,11 +313,15 @@ elastic_net_wrapper_pooled <- function(data, outcome=NULL, by=NULL,predictors_co
     # Store predictors model
     if (family==('binary')){
       results_df_model[entry,'fold'] = entry
+      results_df_model[entry,'alpha']=alpha.min
+      results_df_model[entry,'lambda']=lambda.min
       results_df_model[entry,'nrow_train']=nrow(x_train_entry)
       results_df_model[entry,'ny_train']=sum(as.numeric(as.character(unlist(y_train_entry))))
     }
     else if (family==('continuous')){
       results_df_model[entry,'fold'] = entry
+      results_df_model[entry,'alpha']=alpha.min
+      results_df_model[entry,'lambda']=lambda.min
       results_df_model[entry,'nrow_train']=nrow(x_train_entry)
       results_df_model[entry,'mean_y_train']=mean(as.numeric(as.character(unlist(y_train_entry))))
     }
