@@ -1,6 +1,6 @@
 xgboost_test_wrapper <- function(data, outcome=NULL, predictors_con=NULL,predictors_cat=NULL, split=80, outer_cv=NULL, stratified=T,scaling=T,
                                          seed=404,shuffle=T,eta=0.3,max_depth=6,subsample=1,gamma=0,min_child_weight=1,max_delta_step=0,
-                                 colsample_bytree=1,lambda=1,alpha=0,
+                                 colsample_bytree=1,lambda=1,alpha=0,ntrees=100,
                                          stop_train=NULL,stop_test=NULL,family='binary',pred_min=NULL,pred_max=NULL,prefer_sensitivity=T){
   # required packages
   require(xgboost)
@@ -192,7 +192,7 @@ xgboost_test_wrapper <- function(data, outcome=NULL, predictors_con=NULL,predict
                    colsample_bytree=colsample_bytree,
                    lambda=lambda,
                    alpha=alpha,
-                   nrounds=100)
+                   nrounds=ntrees)
     estimates= xgb.importance(model = xgmodel)[,c(1,2)]
     
     # calculate metrics

@@ -115,13 +115,13 @@ elastic_net_wrapper <- function(data, outcome=NULL, predictors_con=NULL,predicto
   
   # creating the results dataframe
   if (family==('binary')){
-    results_df = data.frame(matrix(ncol = (11+length(predictors))))
-    colnames(results_df) = c('fold','nrow_train','nrow_test','ny_train','ny_test','AUC','sensitivity','specificity',
+    results_df = data.frame(matrix(ncol = (13+length(predictors))))
+    colnames(results_df) = c('fold','alpha','lambda','nrow_train','nrow_test','ny_train','ny_test','AUC','sensitivity','specificity',
                              'accuracy','PPV','NPV',predictors)
   }
   if (family==('continuous')){
-    results_df = data.frame(matrix(ncol = (10+length(predictors))))
-    colnames(results_df) = c('fold','nrow_train','nrow_test','mean_y_train','mean_y_test','R2','R2_adjusted','RMSE','MSE',
+    results_df = data.frame(matrix(ncol = (12+length(predictors))))
+    colnames(results_df) = c('fold','alpha','lambda','nrow_train','nrow_test','mean_y_train','mean_y_test','R2','R2_adjusted','RMSE','MSE',
                              'MAE',predictors)
   }
   
@@ -233,6 +233,27 @@ elastic_net_wrapper <- function(data, outcome=NULL, predictors_con=NULL,predicto
       estimates = elastic_model$beta
     }
     
+    # storing estimates
+    for (predictor in predictors){
+      index = which(rownames(estimates)==predictor)
+      if (length(index)==0){
+        results_df[entry,predictor]<- NA
+      }
+      else{
+        results_df[entry,predictor]<- estimates[index]
+      }
+    }
+    
+    # Storing model
+    models[[entry]]=elastic_model
+    
+    # Storing information on the model
+    results_df[entry,'fold']=entry
+    results_df[entry,'alpha']=alpha.min
+    results_df[entry,'lambda']=lambda.min
+    results_df[entry,'nrow_train']=nrow(x_train_entry)
+    results_df[entry,'nrow_test']=nrow(x_test_entry)
+    
     # calculate metrics
     
     # Stopping if there aren't enough observations in the training data
@@ -265,9 +286,6 @@ elastic_net_wrapper <- function(data, outcome=NULL, predictors_con=NULL,predicto
       confmatrix <- confusionMatrix(as.factor(predictions_bin),as.factor(unlist(y_test_entry)),positive='1')
       
       # storing metrics
-      results_df[entry,'fold']=entry
-      results_df[entry,'nrow_train']=nrow(x_train_entry)
-      results_df[entry,'nrow_test']=nrow(x_test_entry)
       results_df[entry,'ny_train']=sum(as.numeric(as.character(unlist(y_train_entry))))
       results_df[entry,'ny_test']=sum(as.numeric(as.character(unlist(y_test_entry))))
       results_df[entry,'AUC']=model_auc
@@ -296,9 +314,6 @@ elastic_net_wrapper <- function(data, outcome=NULL, predictors_con=NULL,predicto
       MAE = MAE(unlist(y_test_entry),predictions)
       
       # storing metrics
-      results_df[entry,'fold']=entry
-      results_df[entry,'nrow_train']=nrow(x_train_entry)
-      results_df[entry,'nrow_test']=nrow(x_test_entry)
       results_df[entry,'mean_y_train']=mean(unlist(y_train_entry))
       results_df[entry,'mean_y_test']=mean(unlist(y_test_entry))
       results_df[entry,'R2']=R2
@@ -307,20 +322,6 @@ elastic_net_wrapper <- function(data, outcome=NULL, predictors_con=NULL,predicto
       results_df[entry,'MSE']=MSE
       results_df[entry,'MAE']=MAE
     }
-    
-    # storing estimates
-    for (predictor in predictors){
-      index = which(rownames(estimates)==predictor)
-      if (length(index)==0){
-        results_df[entry,predictor]<- NA
-      }
-      else{
-        results_df[entry,predictor]<- estimates[index]
-      }
-    }
-    
-    # Storing model
-    models[[entry]]=elastic_model
     
     # updating progress bar
     setTxtProgressBar(pb,entry)

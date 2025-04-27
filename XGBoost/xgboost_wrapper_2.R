@@ -1,6 +1,6 @@
-xgboost_wrapper_1 <- function(data, outcome=NULL, predictors_con=NULL,predictors_cat=NULL, split=80, outer_cv=NULL, stratified=T,scaling=T,
+xgboost_wrapper_2 <- function(data, outcome=NULL, predictors_con=NULL,predictors_cat=NULL, split=80, outer_cv=NULL, stratified=T,scaling=T,
                                  seed=404,shuffle=T,eta_range=c(0.001,0.4),ntrees_range = c(50L,200L),max_depth_range=c(1L,10L),subsample_range=c(0.8,1),
-                            min_child_weight_range=c(1L,50L),colsample_bytree_range=c(0.8,1),lambda_range=c(1,2500),
+                              min_child_weight_range=c(1L,500L),colsample_bytree_range=c(0.8,1),lambda_range=c(1,2500),alpha_range=c(0,10),
                                  stop_train=NULL,stop_test=NULL,family='binary',pred_min=NULL,pred_max=NULL,prefer_sensitivity=T,ncores=NULL,niter=10,nk=1){
   # required packages
   require(xgboost)
@@ -189,20 +189,22 @@ xgboost_wrapper_1 <- function(data, outcome=NULL, predictors_con=NULL,predictors
     x_train_entry[,c(binary_predictors)]<- x_train_entry[,c(binary_predictors)]-1
     x_test_entry[,c(binary_predictors)]<- x_test_entry[,c(binary_predictors)]-1
     
+    
     # finding best hyperparameters
     cv_folds <- create_folds(y_train_entry,k = 10,type='stratified',seed = seed)
-    scoringFunction <- function(eta,max_depth,min_child_weight) {
-      # ,colsample_bytree,min_child_weight,ntrees,subsample,lambda
+    scoringFunction <- function(eta,max_depth,alpha) {
+      # ,colsample_bytree,min_child_weight,max_depth,ntrees,subsample,lambda
       dtrain <- xgb.DMatrix(x_train_entry,label = y_train_entry)
       Pars <- list( 
         booster = "gbtree"
          , eta = eta
-          , ntrees = 100
+           , ntrees = 100
           , max_depth = max_depth
-           #, subsample = subsample
-           , min_child_weight = min_child_weight
-          # , colsample_bytree = colsample_bytree
-           #, lambda = lambda
+        #, subsample = subsample
+        #, min_child_weight = min_child_weight
+        #  , colsample_bytree = colsample_bytree
+        #, lambda = lambda
+        ,alpha=alpha
         , objective = "binary:logistic"
         , eval_metric = "error"
       )
@@ -214,7 +216,7 @@ xgboost_wrapper_1 <- function(data, outcome=NULL, predictors_con=NULL,predictors
         , folds = cv_folds
         , verbose = 0
         , maximize = F,
-        , early_stopping_rounds = 5
+        , early_stopping_rounds =10
       )
       
       return(list(Score = max(xgbcv$evaluation_log$test_error_mean)
@@ -225,34 +227,35 @@ xgboost_wrapper_1 <- function(data, outcome=NULL, predictors_con=NULL,predictors
     
     bounds <- list( 
           eta = eta_range
-          #, ntrees = ntrees_range
+           #, ntrees = ntrees_range
           , max_depth = max_depth_range
-          # , subsample = subsample_range
-           , min_child_weight = min_child_weight_range
-          # , colsample_bytree=colsample_bytree_range
+          #, subsample = subsample_range
+          #, min_child_weight = min_child_weight_range
+          #, colsample_bytree=colsample_bytree_range
           #, lambda=lambda_range
+          , alpha=alpha_range
     )
     
     set.seed(seed)
-    
     optObj <- bayesOpt(
         FUN = scoringFunction
         , bounds = bounds
-        , initPoints = 6
+        , initPoints =6
         , iters.n = niter
         , iters.k = nk
-        , parallel = T
+        , parallel =T
         , verbose = 0
       )
     
     # Setting best parameters
     eta = getBestPars(optObj)$eta
-      #ntrees = getBestPars(optObj)$ntrees
-      max_depth = getBestPars(optObj)$max_depth
-      # subsample = getBestPars(optObj)$subsample
-       min_child_weight = getBestPars(optObj)$min_child_weight
-     # colsample_bytree = getBestPars(optObj)$colsample_bytree
-       # lambda=getBestPars(optObj)$lambda
+       #ntrees = getBestPars(optObj)$ntrees
+     max_depth = getBestPars(optObj)$max_depth
+     #subsample = getBestPars(optObj)$subsample
+     #min_child_weight = getBestPars(optObj)$min_child_weight
+     #colsample_bytree = getBestPars(optObj)$colsample_bytree
+      #lambda=getBestPars(optObj)$lambda
+      alpha=getBestPars(optObj)$alpha
     
     # fitting the xgboost model and getting the estimates for the variables
     set.seed(seed)
@@ -263,9 +266,10 @@ xgboost_wrapper_1 <- function(data, outcome=NULL, predictors_con=NULL,predictors
                        , eta=eta
                         , max_depth=max_depth
                       #, subsample=subsample
-                         , min_child_weight=min_child_weight
-                      #  , colsample_bytree=colsample_bytree
-                      #   , lambda=lambda
+                      # , min_child_weight=min_child_weight
+                      #, colsample_bytree=colsample_bytree
+                      #  , lambda=lambda
+                       , alpha = alpha
                       )
     estimates= xgb.importance(model = xgmodel)[,c(1,2)]
     
