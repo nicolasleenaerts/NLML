@@ -228,7 +228,7 @@ xgboost_wrapper <- function(data, outcome=NULL, predictors_con=NULL,predictors_c
     optObj <- bayesOpt(
         FUN = scoringFunction
         , bounds = bounds
-        , initPoints = 5
+        , initPoints = 6
         , iters.n = niter
         , iters.k = nk
         , parallel = T
