@@ -7,7 +7,6 @@ elastic_net_wrapper_fs <- function(data, outcome=NULL, predictors_con=NULL,predi
   require(pROC)
   require(caret)
   require(splitTools)
-  require(ExhaustiveSearch)
   `%!in%` = Negate(`%in%`)
   
   # combine predictors
@@ -178,26 +177,8 @@ elastic_net_wrapper_fs <- function(data, outcome=NULL, predictors_con=NULL,predi
     x_test_entry[,c(binary_predictors)]<- x_test_entry[,c(binary_predictors)]-1
     
     # finding the best predictors
-    
-    # folds_fs = create_folds(y_train_entry,k = fsnfolds,type='stratified',invert = T)
-    # results_fs = NULL
-    # for (i in c(1:fsnfolds)){
-    #   best_variables = ExhaustiveSearch(y_train_entry ~ ., data = x_train_entry, testSetIDs = folds_fs[[i]],
-    #                                     family = "binomial",combsUpTo = max_fs_combs,performanceMeasure = "MSE",quietly = T)
-    #   if (is.null(results_fs)==T){
-    #     results_fs = data.frame(resultTable(best_variables))
-    #     names(results_fs)[names(results_fs) == 'MSE'] <- paste0('MSE_',i)
-    #   } else {
-    #     results_fs = merge(results_fs,data.frame(resultTable(best_variables)),by = 'Combination')
-    #     names(results_fs)[names(results_fs) == 'MSE'] <- paste0('MSE_',i)
-    #   }
-    # }
-    # results_fs$MSE = rowMeans(results_fs[,2:ncol(results_fs)],na.rm = T)
-    # best_predictors = strsplit(results_fs$Combination[which(results_fs$MSE==min(results_fs$MSE))],split = ' + ',fixed = T)[[1]]
-    # 
-    # 
+  
     set.seed(seed)
-
     rfFuncs$summary <- twoClassSummary
     rfFuncs$selectSize <- function (x, metric, maximize){
       best <- if (maximize)
